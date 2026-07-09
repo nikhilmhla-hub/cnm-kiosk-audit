@@ -42,16 +42,19 @@ console.log("----------------------------------------");
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("ERROR: Supabase URL or Anon Key is missing in .env.local.");
-  console.error("Please fill in SUPABASE_URL and SUPABASE_ANON_KEY first.");
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-async function runTest() {
+async function runTestForPhone(phoneNum, isNew) {
+  console.log(`\n========================================`);
+  console.log(`RUNNING TEST FOR: ${isNew ? 'NEW PHONE' : 'EXISTING PHONE'} (${phoneNum})`);
+  console.log(`========================================`);
+
   const payload = {
-    name: "Test Student",
-    phone: "9876543210",
+    name: "Test Student " + (isNew ? "New" : "Existing"),
+    phone: phoneNum,
     class: "11",
     exam: "JEE",
     overallScore: 62,
@@ -61,16 +64,8 @@ async function runTest() {
   };
 
   try {
-    console.log("\n[Step 1] Validating input payload...");
     const name = payload.name;
     const phone = payload.phone;
-
-    if (!name || typeof name !== "string" || name.trim() === "") {
-      throw new Error("Invalid name");
-    }
-    if (!phone || typeof phone !== "string") {
-      throw new Error("Invalid phone");
-    }
 
     const cleanedPhone = phone.trim().replace(/[\s()-]/g, "");
     let parsedPhone = cleanedPhone;
@@ -82,13 +77,7 @@ async function runTest() {
       parsedPhone = parsedPhone.slice(1);
     }
 
-    const phoneRegex = /^[6-9]\d{9}$/;
-    if (!phoneRegex.test(parsedPhone)) {
-      throw new Error("Phone must be a valid 10-digit Indian mobile number");
-    }
-    console.log(`Validated successfully. Phone parsed as: ${parsedPhone}`);
-
-    console.log(`\n[Step 2] Checking if phone ${parsedPhone} exists in Supabase leads table...`);
+    console.log(`[Step 1] Checking if phone ${parsedPhone} exists in Supabase leads table...`);
     const { data: existingLeads, error: checkError } = await supabase
       .from("leads")
       .select("id, queue_number")
@@ -131,7 +120,8 @@ async function runTest() {
       const { data: lastLeads, error: lastLeadsError } = await supabase
         .from("leads")
         .select("queue_number")
-        .order("queue_number", { ascending: false })
+        .not("queue_number", "is", null)
+        .order("created_at", { ascending: false })
         .limit(1);
 
       if (lastLeadsError) {
@@ -141,7 +131,7 @@ async function runTest() {
       let nextNum = 1;
       if (lastLeads && lastLeads.length > 0 && lastLeads[0].queue_number) {
         const lastQueue = lastLeads[0].queue_number;
-        const match = lastQueue.match(/^CNM(\d+)$/);
+        const match = lastQueue.match(/CNM(\d+)/i);
         if (match) {
           nextNum = parseInt(match[1], 10) + 1;
         }
@@ -176,19 +166,18 @@ async function runTest() {
       console.log(`-> Insert completed successfully. ID: ${leadId}`);
     }
 
-    console.log("\n[Step 3] Attempting Google Sheets backup...");
+    console.log("\n[Step 2] Attempting Google Sheets backup...");
     if (webhookUrl && webhookUrl.trim() !== "" && !webhookUrl.includes("MOCK_WEB_APP_ID")) {
       const backupPayload = {
         ...payload,
         phone: parsedPhone,
-        queueNumber
+        queueNumber,
+        submissionId: "MOCK-SUB-" + Date.now()
       };
       
       const sheetResponse = await fetch(webhookUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(backupPayload),
       });
 
@@ -202,20 +191,30 @@ async function runTest() {
       console.warn("-> Google Sheets webhook not configured or invalid. Skipping backup.");
     }
 
-    console.log("\n----------------------------------------");
-    console.log("TEST COMPLETED SUCCESSFULLY!");
-    console.log("API Response payload match:");
-    console.log(JSON.stringify({
-      status: "success",
-      queueNumber,
-      leadId
-    }, null, 2));
-    console.log("----------------------------------------");
+    console.log("\nRESULT: SUCCESS");
+    console.log("Queue Number: ", queueNumber);
+    console.log("Lead ID:      ", leadId);
+    
+    // Clean up if it was a new record
+    if (isNew) {
+      console.log("\nCleaning up generated test record...");
+      await supabase.from('leads').delete().eq('id', leadId);
+      console.log("Cleanup complete.");
+    }
 
   } catch (err) {
     console.error("\nTEST FAILED!");
-    console.error(err);
+    console.error(err.message || err);
   }
 }
 
-runTest();
+async function runRunner() {
+  // Test 1: Existing Phone (should update and reuse CNM001)
+  await runTestForPhone("9876543210", false);
+
+  // Test 2: New Phone (should generate a new number and insert)
+  const newRandomPhone = "99" + String(Math.floor(10000000 + Math.random() * 90000000)).slice(0, 8);
+  await runTestForPhone(newRandomPhone, true);
+}
+
+runRunner();

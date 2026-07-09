@@ -175,6 +175,39 @@ export async function POST(request: Request) {
         })
         .select();
 
+      // Self-healing duplicate phone constraint handler
+      if (insertError && insertError.code === "23505" && insertError.message && insertError.message.includes("phone")) {
+        console.warn(`[Leads API Warning]: Phone duplicate constraint hit during insert. Resolving to update existing record...`);
+        const { data: retryLeads } = await supabase
+          .from("leads")
+          .select("id, queue_number")
+          .eq("phone", parsedPhone)
+          .limit(1);
+
+        if (retryLeads && retryLeads.length > 0) {
+          queueNumber = retryLeads[0].queue_number;
+          leadId = retryLeads[0].id;
+
+          const { data: updatedData, error: retryError } = await supabase
+            .from("leads")
+            .update({
+              submission_id,
+              name: name.trim(),
+              class: studentClass,
+              exam,
+              overall_score,
+              archetype,
+              bottleneck,
+              status
+            })
+            .eq("id", leadId)
+            .select();
+
+          insertedLeads = updatedData;
+          insertError = retryError;
+        }
+      }
+
       // Self-healing duplicate submission_id handler on insert
       if (insertError && insertError.code === "23505" && insertError.message && insertError.message.includes("submission_id")) {
         console.warn(`[Leads API Warning]: Duplicate submission_id constraint hit during insert. Retrying insert with submission_id = null...`);
@@ -214,7 +247,7 @@ export async function POST(request: Request) {
       }
 
       leadId = insertedLeads[0].id;
-      console.log(`[Leads API]: Successfully inserted lead (id: ${leadId})`);
+      console.log(`[Leads API]: Successfully resolved lead (id: ${leadId})`);
     }
 
     // 7 & 8. Continue sending data to the existing Google Apps Script webhook as a backup (Google Sheets failure must NOT fail the API request)

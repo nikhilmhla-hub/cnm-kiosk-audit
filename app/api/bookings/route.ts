@@ -126,7 +126,8 @@ async function sendWhatsAppAlert(data: BookingPayload): Promise<{ status: "Sent"
           if (val === "None") return "No Major Issue";
           return val;
         })(data.primaryBottleneck),
-        data.queueNumber || ""
+        data.queueNumber || "",
+        new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " (IST)"
       ]
     }
   };
@@ -241,27 +242,67 @@ export async function POST(request: Request) {
       interaktResponse = { error: waErr instanceof Error ? waErr.message : String(waErr) };
     }
 
-    // 3. Insert booking into Supabase bookings table
-    console.log(`[Bookings API]: Inserting booking record into Supabase (leadId: ${leadId}, queue: ${queue_number})...`);
-    const { data: insertedBooking, error: insertError } = await supabase
-      .from("bookings")
-      .insert({
-        booking_id,
-        lead_id: leadId,
-        queue_number,
-        whatsapp_status: whatsappStatus
-      })
-      .select();
+    // 3. Prevent duplicate bookings by checking if a record already exists for this lead_id or booking_id
+    let existingBookingRowId: string | null = null;
+    if (leadId || booking_id) {
+      const orQueryString = [];
+      if (booking_id) orQueryString.push(`booking_id.eq.${booking_id}`);
+      if (leadId) orQueryString.push(`lead_id.eq.${leadId}`);
+
+      const { data: existingBookings, error: checkBookingError } = await supabase
+        .from("bookings")
+        .select("id, booking_id")
+        .or(orQueryString.join(","))
+        .limit(1);
+
+      if (checkBookingError) {
+        console.error("[Bookings API Exception]: Supabase booking check failed:", checkBookingError);
+      } else if (existingBookings && existingBookings.length > 0) {
+        existingBookingRowId = existingBookings[0].id;
+        console.log(`[Bookings API]: Found existing booking (row ID: ${existingBookingRowId}). Reusing for update.`);
+      }
+    }
+
+    let insertedBooking: any = null;
+    let insertError: any = null;
+
+    if (existingBookingRowId) {
+      console.log(`[Bookings API]: Updating booking record row ID: ${existingBookingRowId} (leadId: ${leadId}, queue: ${queue_number})...`);
+      const { data: updated, error: updateErr } = await supabase
+        .from("bookings")
+        .update({
+          booking_id: booking_id,
+          queue_number,
+          whatsapp_status: whatsappStatus
+        })
+        .eq("id", existingBookingRowId)
+        .select();
+      insertedBooking = updated;
+      insertError = updateErr;
+    } else {
+      console.log(`[Bookings API]: Inserting booking record into Supabase (leadId: ${leadId}, queue: ${queue_number})...`);
+      const { data: inserted, error: insertErr } = await supabase
+        .from("bookings")
+        .insert({
+          booking_id,
+          lead_id: leadId,
+          queue_number,
+          whatsapp_status: whatsappStatus
+        })
+        .select();
+      insertedBooking = inserted;
+      insertError = insertErr;
+    }
 
     if (insertError) {
-      console.error("[Bookings API Exception]: Supabase booking insert failed:", insertError);
+      console.error("[Bookings API Exception]: Supabase booking operation failed:", insertError);
       return NextResponse.json(
         { status: "error", message: `Database insert error: ${insertError.message}` },
         { status: 500 }
       );
     }
 
-    console.log("[Bookings API]: Booking insert check completed successfully.");
+    console.log("[Bookings API]: Booking database operation completed successfully.");
 
     // 4. Continue Google Sheets backup (Google Sheets failure must NOT fail the API request)
     const webhookUrl = process.env.SHEET_WEBHOOK_URL;

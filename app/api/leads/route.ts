@@ -67,7 +67,13 @@ export async function POST(request: Request) {
     let queueNumber: string;
     let leadId: string | number;
 
-    const submission_id = data.submissionId || data.submission_id || null;
+    let submission_id = data.submissionId || data.submission_id || null;
+    if (submission_id) {
+      submission_id = String(submission_id).trim();
+      if (submission_id === "" || submission_id.toLowerCase() === "null" || submission_id.toLowerCase() === "undefined") {
+        submission_id = null;
+      }
+    }
     const studentClass = data.class || data.studentClass || null;
     const exam = data.exam || null;
     const overall_score = data.overallScore !== undefined ? data.overallScore : (data.overall_score !== undefined ? data.overall_score : null);
@@ -83,7 +89,7 @@ export async function POST(request: Request) {
 
       console.log(`[Leads API]: Phone exists (leadId: ${leadId}). Updating existing record with queue: ${queueNumber}`);
 
-      const { error: updateError } = await supabase
+      let { error: updateError } = await supabase
         .from("leads")
         .update({
           submission_id,
@@ -96,6 +102,25 @@ export async function POST(request: Request) {
           status
         })
         .eq("id", leadId);
+
+      // Self-healing duplicate submission_id handler
+      if (updateError && updateError.code === "23505" && updateError.message && updateError.message.includes("submission_id")) {
+        console.warn(`[Leads API Warning]: Duplicate submission_id constraint hit during update. Retrying update with submission_id = null...`);
+        const { error: retryError } = await supabase
+          .from("leads")
+          .update({
+            submission_id: null,
+            name: name.trim(),
+            class: studentClass,
+            exam,
+            overall_score,
+            archetype,
+            bottleneck,
+            status
+          })
+          .eq("id", leadId);
+        updateError = retryError;
+      }
 
       if (updateError) {
         console.error("[Leads API Exception]: Supabase update failed:", updateError);
@@ -134,7 +159,7 @@ export async function POST(request: Request) {
       queueNumber = `CNM${String(nextNum).padStart(3, "0")}`;
       console.log(`[Leads API]: Generated global queue number: ${queueNumber}`);
 
-      const { data: insertedLeads, error: insertError } = await supabase
+      let { data: insertedLeads, error: insertError } = await supabase
         .from("leads")
         .insert({
           submission_id,
@@ -149,6 +174,28 @@ export async function POST(request: Request) {
           status
         })
         .select();
+
+      // Self-healing duplicate submission_id handler on insert
+      if (insertError && insertError.code === "23505" && insertError.message && insertError.message.includes("submission_id")) {
+        console.warn(`[Leads API Warning]: Duplicate submission_id constraint hit during insert. Retrying insert with submission_id = null...`);
+        const { data: retryData, error: retryError } = await supabase
+          .from("leads")
+          .insert({
+            submission_id: null,
+            name: name.trim(),
+            phone: parsedPhone,
+            class: studentClass,
+            exam,
+            overall_score,
+            archetype,
+            bottleneck,
+            queue_number: queueNumber,
+            status
+          })
+          .select();
+        insertedLeads = retryData;
+        insertError = retryError;
+      }
 
       if (insertError) {
         console.error("[Leads API Exception]: Supabase insert failed:", insertError);

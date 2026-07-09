@@ -70,7 +70,7 @@ async function runInteraktTest() {
     class: "12",
     exam: "NEET",
     overallScore: 75,
-    archetype: "Concept Master",
+    archetype: "Rank Builder",
     primaryBottleneck: "Revision",
     potentialGain: 15,
     queueNumber: "CNM777"
@@ -149,7 +149,8 @@ async function runInteraktTest() {
             if (bn === "None") return "No Major Issue";
             return bn;
           })(testContact.primaryBottleneck),
-          testContact.queueNumber
+          testContact.queueNumber,
+          new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " (IST)"
         ]
       }
     };

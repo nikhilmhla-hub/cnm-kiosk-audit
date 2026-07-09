@@ -147,7 +147,7 @@ export default function AdminDashboardPage() {
             "Lead Status": l["Lead Status"] || l.Status || "New",
             Timestamp: ts,
             Archetype: l.Archetype || l["Student Type"] || "",
-            "Primary Bottleneck": l["Primary Bottleneck"] || l["Main Issue"] || l.bottleneck || l.Bottleneck || "None"
+            "Primary Bottleneck": l["Primary Bottleneck"] || l["Main Challenge"] || l.bottleneck || l.Bottleneck || "None"
           };
         });
 
@@ -164,7 +164,7 @@ export default function AdminDashboardPage() {
             Exam: b.Exam || (assocLead ? assocLead.Exam : ""),
             "Overall Score": b["Overall Score"] !== undefined ? b["Overall Score"] : (assocLead ? assocLead["Overall Score"] : 0),
             Archetype: b.Archetype || b["Student Type"] || (assocLead ? assocLead["Student Type"] || assocLead.Archetype : ""),
-            "Primary Bottleneck": b["Primary Bottleneck"] || b["Main Issue"] || (assocLead ? assocLead["Primary Bottleneck"] || assocLead.bottleneck || assocLead.Bottleneck || "None" : "None"),
+            "Primary Bottleneck": b["Primary Bottleneck"] || b["Main Challenge"] || (assocLead ? assocLead["Primary Bottleneck"] || assocLead.bottleneck || assocLead.Bottleneck || "None" : "None"),
             "Booking Status": b["Booking Status"] || b.status || b.bookingStatus || "Waiting",
             "WhatsApp Status": b["WhatsApp Status"] || b.whatsappStatus || "Pending",
             "WhatsApp Sent Time": b["WhatsApp Sent Time"] || b.whatsappSentTime || "",

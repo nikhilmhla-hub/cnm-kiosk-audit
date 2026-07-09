@@ -91,12 +91,20 @@ export default function ReportPage() {
       }
 
       const result = await response.json();
-      if (result.status === "success") {
+      if (result.status === "success" && result.queueNumber) {
         submittedIds.push(sessionData.submissionId);
         localStorage.setItem("cnm_kiosk_submitted_ids", JSON.stringify(submittedIds));
-        console.log("[Sheets Storage Success]: Lead successfully written to Google Sheet.");
+        
+        const updatedSession = {
+          ...sessionData,
+          queueNumber: result.queueNumber
+        };
+        setSession(updatedSession);
+        localStorage.setItem("cnm_kiosk_audit_session", JSON.stringify(updatedSession));
+        
+        console.log("[Sheets Storage Success]: Lead registered. Queue number saved:", result.queueNumber);
       } else {
-        console.warn("[Sheets Storage Warning]: Proxy succeeded, but Sheets reported status:", result);
+        console.warn("[Sheets Storage Warning]: Proxy succeeded, but Sheets/Database reported status:", result);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -107,27 +115,20 @@ export default function ReportPage() {
   const handleBookSession = async () => {
     if (!session || isBooking || session.sessionStatus === "Booked") return;
 
+    if (!session.queueNumber) {
+      alert("Lead queue registration is still processing. Please wait 2 seconds and try again.");
+      return;
+    }
+
     setIsBooking(true);
 
     try {
-      const today = new Date();
-      const todayDateStr = today.toISOString().split("T")[0]; // YYYY-MM-DD
-
-      const lastBookingDate = localStorage.getItem("cnm_kiosk_last_booking_date");
-      const lastQueueCounter = localStorage.getItem("cnm_kiosk_queue_counter");
-
-      let newCounter = 1;
-      if (lastBookingDate === todayDateStr && lastQueueCounter) {
-        newCounter = parseInt(lastQueueCounter, 10) + 1;
-      }
-
-      const formattedQueue = "#" + String(newCounter).padStart(3, "0");
       const bookingId = `BK-${Date.now()}-${session.student.phone.trim()}`;
 
       const payload = {
         bookingId,
         submissionId: session.submissionId,
-        queueNumber: formattedQueue,
+        queueNumber: session.queueNumber,
         name: session.student.name,
         phone: session.student.phone,
         class: session.student.class,
@@ -167,14 +168,9 @@ export default function ReportPage() {
         const updatedSession: StudentSession = {
           ...session,
           sessionStatus: "Booked",
-          queueNumber: formattedQueue,
           bookingId: bookingId
         };
         localStorage.setItem("cnm_kiosk_audit_session", JSON.stringify(updatedSession));
-        
-        localStorage.setItem("cnm_kiosk_last_booking_date", todayDateStr);
-        localStorage.setItem("cnm_kiosk_queue_counter", String(newCounter));
-
         setSession(updatedSession);
         router.push("/confirm");
       } else {

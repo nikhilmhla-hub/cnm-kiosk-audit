@@ -48,7 +48,7 @@ export default function ReportPage() {
       const { grade } = getGradeDetails(sessionData.overallScore);
       const payload = {
         submissionId: sessionData.submissionId,
-        source: "Gopalpura Kiosk",
+        source: "Kiosk",
         name: sessionData.student.name,
         phone: sessionData.student.phone,
         class: sessionData.student.class,
@@ -138,7 +138,7 @@ export default function ReportPage() {
         primaryBottleneck: session.primaryBottleneck ? session.primaryBottleneck.category : "None",
         potentialGain: session.potentialImprovement.gain,
         bookingStatus: "Waiting",
-        source: "Gopalpura Kiosk"
+        source: "Kiosk"
       };
 
       const response = await fetch("/api/bookings", {
@@ -224,7 +224,7 @@ export default function ReportPage() {
       });
       doc.setTextColor(140, 140, 140);
       doc.setFontSize(8.5);
-      doc.text(`Generated On: ${genDate}  |  Kiosk Source: Gopalpura Kiosk`, margin, 34);
+      doc.text(`Generated On: ${genDate}  |  Kiosk Source: Kiosk`, margin, 34);
       
       // 2. Student Info Card
       doc.setDrawColor(220, 220, 220);

@@ -4,19 +4,78 @@ import { supabase } from "@/lib/supabase";
 export async function POST(request: Request) {
   try {
     const data = await request.json();
+    data.source = "Kiosk";
     const name = data.name;
     const phone = data.phone;
 
-    // 1. Validation: name required
-    if (!name || typeof name !== "string" || name.trim() === "") {
-      console.warn("[Leads API Warning]: Validation failed - Missing or invalid name.");
+    // 1. Validation: name required & format checks
+    if (!name || typeof name !== "string") {
+      console.warn("[Leads API Warning]: Validation failed - Missing or invalid name type.");
       return NextResponse.json(
-        { status: "error", message: "Name is required." },
+        { status: "error", message: "Please enter a valid name." },
         { status: 400 }
       );
     }
 
-    // 2. Validation: phone required
+    const trimmedName = name.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 50) {
+      console.warn(`[Leads API Warning]: Validation failed - Name length ${trimmedName.length} invalid.`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid name." },
+        { status: 400 }
+      );
+    }
+
+    // Reject fake names (case-insensitive)
+    const fakeNames = ["test", "testing", "demo", "sample", "admin", "student", "abc", "xyz", "asdf", "qwerty"];
+    if (fakeNames.includes(trimmedName.toLowerCase())) {
+      console.warn(`[Leads API Warning]: Validation failed - Fake name detected: ${trimmedName}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid name." },
+        { status: 400 }
+      );
+    }
+
+    // Reject single repeated characters (ignoring spaces)
+    const normalizedName = trimmedName.replace(/\s/g, "");
+    if (/^(.)\1+$/.test(normalizedName)) {
+      console.warn(`[Leads API Warning]: Validation failed - Repeated characters in name: ${trimmedName}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid name." },
+        { status: 400 }
+      );
+    }
+
+    // Reject names shorter than 4 characters unless they contain at least two words
+    const nameWords = trimmedName.split(/\s+/).filter(Boolean);
+    if (trimmedName.length < 4 && nameWords.length < 2) {
+      console.warn(`[Leads API Warning]: Validation failed - Short name without 2 words: ${trimmedName}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid name." },
+        { status: 400 }
+      );
+    }
+
+    // Each word must contain at least 2 alphabetic characters
+    const allWordsAtLeastTwo = nameWords.every(word => word.replace(/[^A-Za-z]/g, "").length >= 2);
+    if (!allWordsAtLeastTwo) {
+      console.warn(`[Leads API Warning]: Validation failed - Word contains less than 2 letters: ${trimmedName}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid name." },
+        { status: 400 }
+      );
+    }
+
+    // Allow only alphabets, spaces, and periods
+    if (!/^[A-Za-z\s.]+$/.test(trimmedName)) {
+      console.warn(`[Leads API Warning]: Validation failed - Invalid characters in name: ${trimmedName}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid name." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Validation: phone required & format checks
     if (!phone || typeof phone !== "string") {
       console.warn("[Leads API Warning]: Validation failed - Missing or invalid phone.");
       return NextResponse.json(
@@ -37,12 +96,85 @@ export async function POST(request: Request) {
       parsedPhone = parsedPhone.slice(1);
     }
 
-    // Validation: must be a valid 10-digit Indian mobile number
-    const phoneRegex = /^[6-9]\d{9}$/;
-    if (!phoneRegex.test(parsedPhone)) {
-      console.warn(`[Leads API Warning]: Validation failed - Invalid Indian mobile number format: ${phone}`);
+    // Exactly 10 digits
+    if (parsedPhone.length !== 10) {
+      console.warn(`[Leads API Warning]: Validation failed - Phone length ${parsedPhone.length} is not 10.`);
       return NextResponse.json(
-        { status: "error", message: "Phone must be a valid 10-digit Indian mobile number." },
+        { status: "error", message: "Please enter a valid mobile number." },
+        { status: 400 }
+      );
+    }
+
+    // Must start with 6, 7, 8, or 9
+    if (!/^[6-9]/.test(parsedPhone)) {
+      console.warn(`[Leads API Warning]: Validation failed - Phone does not start with 6-9: ${parsedPhone}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid mobile number." },
+        { status: 400 }
+      );
+    }
+
+    // Reject numbers containing 8 or more identical digits
+    const counts: Record<string, number> = {};
+    for (const char of parsedPhone) {
+      counts[char] = (counts[char] || 0) + 1;
+    }
+    const hasEightIdentical = Object.values(counts).some((count) => count >= 8);
+    if (hasEightIdentical) {
+      console.warn(`[Leads API Warning]: Validation failed - 8+ identical digits: ${parsedPhone}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid mobile number." },
+        { status: 400 }
+      );
+    }
+
+    // Reject numbers where first 6 digits are identical
+    if (/^(\d)\1{5}/.test(parsedPhone)) {
+      console.warn(`[Leads API Warning]: Validation failed - First 6 digits identical: ${parsedPhone}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid mobile number." },
+        { status: 400 }
+      );
+    }
+
+    // Reject numbers containing 7+ repeating digits in sequence
+    if (/(\d)\1{6}/.test(parsedPhone)) {
+      console.warn(`[Leads API Warning]: Validation failed - 7+ sequential repeating digits: ${parsedPhone}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid mobile number." },
+        { status: 400 }
+      );
+    }
+
+    // Reject obvious ascending/descending patterns of length 6 or more
+    const ascPattern = "01234567890123456789";
+    const descPattern = "98765432109876543210";
+    let isSequentialPhone = false;
+    for (let i = 0; i <= parsedPhone.length - 6; i++) {
+      const sub = parsedPhone.substring(i, i + 6);
+      if (ascPattern.includes(sub) || descPattern.includes(sub)) {
+        isSequentialPhone = true;
+        break;
+      }
+    }
+    if (isSequentialPhone) {
+      console.warn(`[Leads API Warning]: Validation failed - Sequential sequence: ${parsedPhone}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid mobile number." },
+        { status: 400 }
+      );
+    }
+
+    // Reject repeated dummy numbers
+    const dummyPhoneList = [
+      "0000000000", "1111111111", "2222222222", "3333333333",
+      "4444444444", "5555555555", "6666666666", "7777777777",
+      "8888888888", "9999999999", "1234567890", "0123456789", "9876543210"
+    ];
+    if (dummyPhoneList.includes(parsedPhone)) {
+      console.warn(`[Leads API Warning]: Validation failed - Dummy number: ${parsedPhone}`);
+      return NextResponse.json(
+        { status: "error", message: "Please enter a valid mobile number." },
         { status: 400 }
       );
     }
@@ -99,7 +231,8 @@ export async function POST(request: Request) {
           overall_score,
           archetype,
           bottleneck,
-          status
+          status,
+          source: "Kiosk"
         })
         .eq("id", leadId);
 
@@ -116,7 +249,8 @@ export async function POST(request: Request) {
             overall_score,
             archetype,
             bottleneck,
-            status
+            status,
+            source: "Kiosk"
           })
           .eq("id", leadId);
         updateError = retryError;
@@ -171,7 +305,8 @@ export async function POST(request: Request) {
           archetype,
           bottleneck,
           queue_number: queueNumber,
-          status
+          status,
+          source: "Kiosk"
         })
         .select();
 
@@ -198,7 +333,8 @@ export async function POST(request: Request) {
               overall_score,
               archetype,
               bottleneck,
-              status
+              status,
+              source: "Kiosk"
             })
             .eq("id", leadId)
             .select();
@@ -223,7 +359,8 @@ export async function POST(request: Request) {
             archetype,
             bottleneck,
             queue_number: queueNumber,
-            status
+            status,
+            source: "Kiosk"
           })
           .select();
         insertedLeads = retryData;

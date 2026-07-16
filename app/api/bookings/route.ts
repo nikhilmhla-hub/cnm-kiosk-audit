@@ -175,6 +175,7 @@ async function sendWhatsAppAlert(data: BookingPayload): Promise<{ status: "Sent"
 export async function POST(request: Request) {
   try {
     const data: BookingPayload = await request.json();
+    (data as any).source = "Kiosk";
     const phone = data.phone;
 
     // Clean phone number: remove whitespaces, dashes, parentheses
@@ -273,7 +274,8 @@ export async function POST(request: Request) {
         .update({
           booking_id: booking_id,
           queue_number,
-          whatsapp_status: whatsappStatus
+          whatsapp_status: whatsappStatus,
+          source: "Kiosk"
         })
         .eq("id", existingBookingRowId)
         .select();
@@ -287,7 +289,8 @@ export async function POST(request: Request) {
           booking_id,
           lead_id: leadId,
           queue_number,
-          whatsapp_status: whatsappStatus
+          whatsapp_status: whatsappStatus,
+          source: "Kiosk"
         })
         .select();
       insertedBooking = inserted;

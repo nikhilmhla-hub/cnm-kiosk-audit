@@ -378,7 +378,7 @@ export default function AdminDashboardPage() {
             CNM Mentor Portal
           </h1>
           <p className="text-xs text-zinc-500 font-mono tracking-wide mt-0.5">
-            LOCATION: GOPALPURA ROAD KIOSK TRACK
+            LOCATION: KIOSK
           </p>
         </div>
 

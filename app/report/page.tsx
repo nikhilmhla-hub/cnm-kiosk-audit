@@ -701,6 +701,7 @@ export default function ReportPage() {
         </div>
       </div>
 
+
       {/* Phase 2: Study Plan Section */}
       <div className="bg-card border border-border rounded-2xl p-8 relative overflow-hidden shadow-2xl space-y-6">
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />

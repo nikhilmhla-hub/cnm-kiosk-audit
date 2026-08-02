@@ -7,20 +7,22 @@ import { Check } from "lucide-react";
 export interface RadioCardProps extends React.HTMLAttributes<HTMLButtonElement> {
   selected: boolean;
   title: string;
+  titleHi?: string;
   description?: string;
+  descriptionHi?: string;
   points?: string | number;
   disabled?: boolean;
 }
 
 const RadioCard = React.forwardRef<HTMLButtonElement, RadioCardProps>(
-  ({ selected, title, description, points, disabled = false, className, ...props }, ref) => {
+  ({ selected, title, titleHi, description, descriptionHi, points, disabled = false, className, ...props }, ref) => {
     return (
       <button
         ref={ref}
         disabled={disabled}
         type="button"
         className={cn(
-          "w-full flex items-start justify-between p-5 rounded-2xl border bg-card text-left transition-all duration-300 select-none outline-none focus-visible:ring-2 focus-visible:ring-gold/70 disabled:opacity-40 disabled:pointer-events-none active:scale-[0.99] touch-manipulation cursor-pointer",
+          "w-full flex items-start justify-between p-5 rounded-2xl border bg-card text-left transition-all duration-300 select-none outline-none focus-visible:ring-2 focus-visible:ring-gold/70 disabled:opacity-40 disabled:pointer-events-none active:scale-[0.99] touch-manipulation cursor-pointer min-h-[76px]",
           {
             // Selected variant: gold border, golden drop glow
             "border-gold bg-gold/[0.02] shadow-lg shadow-gold/5": selected,
@@ -45,18 +47,33 @@ const RadioCard = React.forwardRef<HTMLButtonElement, RadioCardProps>(
             {selected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
           </div>
 
-          <div className="space-y-1">
-            <h4
+          <div className="space-y-1 option-text flex-1">
+            <div
               className={cn(
-                "font-semibold text-base leading-snug transition-colors",
+                "font-semibold text-base leading-snug transition-colors option-en",
                 selected ? "text-gold" : "text-white"
               )}
             >
               {title}
-            </h4>
+            </div>
+            {titleHi && (
+              <div
+                className={cn(
+                  "font-normal text-[15px] leading-snug transition-colors option-hi mt-1",
+                  selected ? "text-gold/80" : "text-zinc-300"
+                )}
+              >
+                {titleHi}
+              </div>
+            )}
             {description && (
-              <p className="text-zinc-400 text-sm font-light leading-relaxed">
+              <p className="text-zinc-400 text-sm font-light leading-relaxed mt-1">
                 {description}
+              </p>
+            )}
+            {descriptionHi && (
+              <p className="text-zinc-400/80 text-xs font-normal leading-relaxed">
+                {descriptionHi}
               </p>
             )}
           </div>

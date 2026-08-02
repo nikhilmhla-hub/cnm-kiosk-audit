@@ -479,8 +479,11 @@ export default function AuditWizardPage() {
 
           <QuestionCard
             title={currentQuestion.text}
+            titleHi={currentQuestion.textHi}
             description={currentQuestion.description}
+            descriptionHi={currentQuestion.descriptionHi}
             helperText={currentQuestion.helperText}
+            helperTextHi={currentQuestion.helperTextHi}
             variant="glass"
           >
             <div className="grid grid-cols-1 gap-4 pt-2">
@@ -489,7 +492,9 @@ export default function AuditWizardPage() {
                   key={i}
                   selected={answers[currentQuestion.id] === opt.label}
                   title={opt.label}
+                  titleHi={opt.labelHi}
                   description={opt.description}
+                  descriptionHi={opt.descriptionHi}
                   onClick={() => handleSelectOption(opt.label)}
                 />
               ))}
@@ -625,7 +630,7 @@ export default function AuditWizardPage() {
           >
             {loaderTexts[loaderTextIdx]}
           </div>
-          <div className="mt-4 text-xs font-mono text-zinc-600 uppercase tracking-widest">
+          <div className="mt-4 text-xs font-mono text-zinc-500 uppercase tracking-widest">
             System Diagnostics
           </div>
         </div>
